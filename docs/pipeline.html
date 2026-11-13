@@ -1,0 +1,373 @@
+<title>Einstein Pipeline</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one vertical rail of numbered steps (the real execution order); each step names the system it talks to by colour. */
+:root {
+  --bg: #f3f6f7; --panel: #ffffff; --fg: #15232b; --muted: #5a6b74; --line: #d3dde1;
+  --ink: #1d3b4a;
+  --c-ui: #2563a8;   --c-ui-bg: #e3edf8;
+  --c-srv: #1d3b4a;  --c-srv-bg: #e2e9ec;
+  --c-kg: #1f7a4d;   --c-kg-bg: #e0f1e7;
+  --c-llm: #6b45a8;  --c-llm-bg: #ece5f7;
+  --c-db: #a0620b;   --c-db-bg: #f8ecd9;
+  --c-mp: #b23a3a;   --c-mp-bg: #f8e3e3;
+  --code-bg: #eaf0f2;
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f171b; --panel: #16222880; --fg: #e3ecef; --muted: #93a6ae; --line: #2a3a42; --ink: #cfe0e7;
+  --c-ui: #7fb2ec; --c-ui-bg: #1a2b3d; --c-srv: #b9ccd4; --c-srv-bg: #1e2c33;
+  --c-kg: #6fd09f; --c-kg-bg: #15302a; --c-llm: #b99cf0; --c-llm-bg: #2a2140;
+  --c-db: #e9b25c; --c-db-bg: #33270f; --c-mp: #f08f8f; --c-mp-bg: #3a1c1c; --code-bg: #1b282e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f171b; --panel: #16222880; --fg: #e3ecef; --muted: #93a6ae; --line: #2a3a42; --ink: #cfe0e7;
+  --c-ui: #7fb2ec; --c-ui-bg: #1a2b3d; --c-srv: #b9ccd4; --c-srv-bg: #1e2c33;
+  --c-kg: #6fd09f; --c-kg-bg: #15302a; --c-llm: #b99cf0; --c-llm-bg: #2a2140;
+  --c-db: #e9b25c; --c-db-bg: #33270f; --c-mp: #f08f8f; --c-mp-bg: #3a1c1c; --code-bg: #1b282e; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--f-body); }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; color: var(--ink) }
+h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 800; letter-spacing: -0.02em }
+h2 { font-size: 24px; font-weight: 700; margin-top: 56px; margin-bottom: 6px }
+h3 { font-size: 17px; font-weight: 700 }
+p { margin: 0 }
+.lead { color: var(--muted); max-width: 68ch; margin-top: 10px; font-size: 16px }
+.sub { color: var(--muted); max-width: 68ch; margin-bottom: 20px }
+code, .mono { font-family: var(--f-mono); font-size: 12.5px }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere }
+.eyebrow { font: 600 11px/1 var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted) }
+
+/* Legend */
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 500 12px/1 var(--f-body); padding: 6px 9px; border-radius: 999px; white-space: nowrap }
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor }
+.ui  { color: var(--c-ui);  background: var(--c-ui-bg) }
+.srv { color: var(--c-srv); background: var(--c-srv-bg) }
+.kg  { color: var(--c-kg);  background: var(--c-kg-bg) }
+.llm { color: var(--c-llm); background: var(--c-llm-bg) }
+.db  { color: var(--c-db);  background: var(--c-db-bg) }
+.mp  { color: var(--c-mp);  background: var(--c-mp-bg) }
+
+/* Overview strip */
+.overview { margin-top: 28px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 18px }
+.ov { display: flex; align-items: stretch; gap: 0; min-width: 900px }
+.ov .n { flex: 1; padding: 10px 10px; border-radius: 8px; font: 600 12.5px/1.3 var(--f-body); text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 3px }
+.ov .n small { font: 400 11px/1.3 var(--f-body); opacity: .85 }
+.ov .arr { width: 20px; flex: none; display: grid; place-items: center; color: var(--muted); font-size: 14px }
+.ov-back { min-width: 900px; margin-top: 10px; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px }
+.ov-back .bar { flex: 1; height: 0; border-top: 2px dashed var(--c-ui) }
+
+/* Rail of steps */
+.rail { position: relative; display: grid; gap: 14px; margin-top: 8px }
+.rail::before { content: ""; position: absolute; left: 19px; top: 8px; bottom: 8px; width: 2px; background: var(--line) }
+.step { position: relative; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px }
+.num { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font: 700 15px/1 var(--f-display); background: var(--bg); border: 2px solid currentColor; z-index: 1 }
+.card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid currentColor; border-radius: 8px; padding: 14px 16px; min-width: 0 }
+.card .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-bottom: 6px }
+.card .where { font-family: var(--f-mono); font-size: 12px; color: var(--muted) }
+.card p + p, .card p + ul, .card ul + p { margin-top: 8px }
+.card ul { margin: 6px 0 0; padding-left: 18px }
+.card li + li { margin-top: 3px }
+.talks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 10px }
+.box { border-radius: 6px; padding: 10px 12px; font-size: 13.5px; min-width: 0 }
+.box h4 { margin: 0 0 4px; font: 600 12px/1.2 var(--f-body); letter-spacing: .06em; text-transform: uppercase }
+.box.kg { color: var(--fg); background: var(--c-kg-bg) } .box.kg h4 { color: var(--c-kg) }
+.box.llm { color: var(--fg); background: var(--c-llm-bg) } .box.llm h4 { color: var(--c-llm) }
+.box.srv { color: var(--fg); background: var(--c-srv-bg) } .box.srv h4 { color: var(--c-srv) }
+.box.mp { color: var(--fg); background: var(--c-mp-bg) } .box.mp h4 { color: var(--c-mp) }
+.box.db { color: var(--fg); background: var(--c-db-bg) } .box.db h4 { color: var(--c-db) }
+.box.ui { color: var(--fg); background: var(--c-ui-bg) } .box.ui h4 { color: var(--c-ui) }
+.out { margin-top: 8px; font-size: 13.5px; color: var(--muted) }
+.out b { color: var(--fg); font-weight: 600 }
+.agent-tag { font: 600 11px/1 var(--f-body); letter-spacing: .08em; text-transform: uppercase; padding: 4px 7px; border-radius: 4px; background: var(--c-srv-bg); color: var(--c-srv) }
+.t-ui { color: var(--c-ui) } .t-srv { color: var(--c-srv) } .t-kg { color: var(--c-kg) } .t-db { color: var(--c-db) } .t-mp { color: var(--c-mp) }
+.group { margin: 22px 0 6px 54px; display: flex; align-items: center; gap: 10px }
+.group .eyebrow { color: var(--ink) }
+.group::after { content: ""; flex: 1; border-top: 1px solid var(--line) }
+
+/* MCP decision */
+.decide { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 10px }
+.decide div { border: 1px dashed var(--c-kg); border-radius: 6px; padding: 8px 10px; font-size: 13px }
+.decide b { display: block; font-size: 12px; color: var(--c-kg); margin-bottom: 2px }
+
+/* Ontology */
+.onto { display: grid; grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr); gap: 0; align-items: stretch; margin-top: 8px }
+.onto .side { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0 }
+.onto .mid { display: grid; place-items: center; color: var(--muted); font-size: 22px }
+.terms { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px }
+.terms td { padding: 5px 0; border-top: 1px solid var(--line); vertical-align: top }
+.terms td:first-child { font-family: var(--f-mono); font-size: 12px; white-space: nowrap; padding-right: 10px }
+.terms td:last-child { color: var(--muted) }
+.map { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto }
+.map table { border-collapse: collapse; font-size: 13px; min-width: 560px; width: 100% }
+.map th { text-align: left; font: 600 11px/1.2 var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 10px 6px 0 }
+.map td { padding: 6px 10px 6px 0; border-top: 1px solid var(--line); font-family: var(--f-mono); font-size: 12px }
+.map td:last-child { font-family: var(--f-body); font-size: 13px; color: var(--muted) }
+
+/* Graph mini diagram */
+.graph { margin-top: 12px; overflow-x: auto }
+.graph svg { display: block; min-width: 620px; width: 100%; height: auto }
+.graph text { font-family: var(--f-mono); font-size: 11px; fill: var(--fg) }
+.graph .lbl { fill: var(--muted); font-size: 10.5px }
+
+/* Fallback table */
+.fb { margin-top: 8px; overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px }
+.fb table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13.5px }
+.fb th, .fb td { text-align: left; padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top }
+.fb th { border-top: 0; font: 600 11px/1.2 var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.fb td:first-child { font-weight: 600; white-space: nowrap }
+
+@media (max-width: 640px) {
+  .onto { grid-template-columns: minmax(0, 1fr) } .onto .mid { padding: 6px 0; transform: rotate(90deg) }
+  .group { margin-left: 0 }
+}
+@media (prefers-reduced-motion: no-preference) { .card { transition: box-shadow .15s } .card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06) } }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">joaquin4053/einstein · Branch Agnet-joaquin</p>
+  <h1>Einstein Pipeline</h1>
+  <p class="lead">Der ganze Weg einer Frage: vom Chatfenster über den Server, die sechs Agenten, den SemOpenAlex-MCP-Server und das LLM bis zur Antwort, die wieder im Chat landet. Alle Dateinamen und Funktionen stammen aus dem Code.</p>
+
+  <div class="legend" aria-label="Legende">
+    <span class="chip ui">Browser / Chat</span>
+    <span class="chip srv">Einstein-Server (Next.js)</span>
+    <span class="chip kg">SemOpenAlex (MCP + SPARQL)</span>
+    <span class="chip llm">LLM (Apertus)</span>
+    <span class="chip db">Speicher</span>
+    <span class="chip mp">metaphactory / GraphDB</span>
+  </div>
+
+  <div class="overview" role="img" aria-label="Überblick der Pipeline">
+    <div class="ov">
+      <div class="n ui">Chat<small>Frage tippen</small></div><div class="arr">→</div>
+      <div class="n srv">/api/research<small>NDJSON-Stream</small></div><div class="arr">→</div>
+      <div class="n srv">Planner<small>Begriffe</small></div><div class="arr">→</div>
+      <div class="n kg">Retriever<small>MCP · SPARQL</small></div><div class="arr">→</div>
+      <div class="n llm">Extractor<small>Abstracts lesen</small></div><div class="arr">→</div>
+      <div class="n srv">Graph Builder<small>Evidenzgraph</small></div><div class="arr">→</div>
+      <div class="n llm">Verifier<small>Debatte, Score</small></div><div class="arr">→</div>
+      <div class="n llm">Reporter<small>Markdown</small></div><div class="arr">→</div>
+      <div class="n ui">Antwort<small>Report · Graph</small></div>
+    </div>
+    <div class="ov-back"><span>↑ Jeder Schritt schickt sofort Events zurück an den Chat (Live-Ablauf)</span><span class="bar"></span></div>
+  </div>
+
+  <h2>Schritt für Schritt</h2>
+  <p class="sub">Die Nummern sind die echte Reihenfolge der Ausführung. Die farbige Kante zeigt, welches System im Schritt die Hauptrolle spielt.</p>
+
+  <div class="rail">
+    <div class="group"><span class="eyebrow">Eingabe</span></div>
+
+    <div class="step t-ui"><div class="num">1</div><div class="card">
+      <div class="head"><h3>Frage im Chat</h3><span class="where">components/Chat.tsx</span></div>
+      <p>Du tippst eine Frage, zum Beispiel <em>„Which deep learning methods are used in Alzheimer research since 2018?“</em>. Der Chat legt einen neuen Gesprächsschritt an und speichert ihn sofort im Browser.</p>
+      <p>Dann schickt er <code>POST /api/research</code> mit <code>{"question": "…"}</code> an den Server.</p>
+      <div class="talks"><span class="chip ui">Browser</span><span class="chip db">localStorage einstein:chats</span></div>
+    </div></div>
+
+    <div class="step t-srv"><div class="num">2</div><div class="card">
+      <div class="head"><h3>API-Route öffnet einen Stream</h3><span class="where">app/api/research/route.ts</span></div>
+      <p>Die Route kürzt die Frage auf höchstens 500 Zeichen und öffnet einen <b>NDJSON-Stream</b>: Jedes Ereignis wird als eine JSON-Zeile sofort an den Browser geschickt. Die Funktion darf bis zu 300 Sekunden laufen (Vercel).</p>
+      <p>Ereignistypen: <code>run</code>, <code>agent_start</code>, <code>tool_call</code>, <code>log</code>, <code>agent_done</code>, <code>error</code>, <code>result</code>.</p>
+      <div class="talks"><span class="chip srv">Node-Funktion</span></div>
+    </div></div>
+
+    <div class="step t-srv"><div class="num">3</div><div class="card">
+      <div class="head"><h3>Orchestrator richtet den Lauf ein</h3><span class="where">runResearch() · lib/agents/pipeline.ts</span></div>
+      <p>Vergibt eine Lauf-ID und entscheidet zwei Dinge:</p>
+      <div class="cols">
+        <div class="box kg"><h4>Datenquelle · getSource()</h4>Ist <code>SEMOPENALEX_MCP_AUTH</code> oder <code>_KEY</code> gesetzt, wird der <b>MCP-Server</b> verwendet, mit dem öffentlichen SPARQL-Endpunkt als Ersatz. Sonst nur <b>SPARQL</b>.</div>
+        <div class="box llm"><h4>Modell · resolveModel()</h4>Mit <code>LLM_API_KEY</code>: Das erste Modell, das wirklich antwortet, wird genommen (bevorzugt Apertus, das größte zuerst). Ohne Key läuft der <b>Demo-Modus</b> mit Regeln.</div>
+      </div>
+      <div class="talks"><span class="chip kg">lib/kg/source.ts</span><span class="chip llm">lib/llm/index.ts</span></div>
+    </div></div>
+
+    <div class="group"><span class="eyebrow">Die sechs Agenten</span></div>
+
+    <div class="step t-srv"><div class="num">4</div><div class="card">
+      <div class="head"><span class="agent-tag">Agent 1</span><h3>Planner</h3><span class="where">planner()</span></div>
+      <p>Zerlegt die Frage in <b>Themenbegriffe</b> (1–2), <b>Methodenbegriffe</b> (0–4), ein <b>Startjahr</b> und 3–4 Teilfragen. Methoden, die wörtlich in der Frage stehen, zählen immer.</p>
+      <div class="cols">
+        <div class="box llm"><h4>Mit LLM</h4><code>completeJson()</code> liefert den Plan als JSON.</div>
+        <div class="box srv"><h4>Ohne LLM</h4>Großgeschriebene Wörter gelten als Thema, Methoden kommen aus der Wortliste in <code>lexicon.ts</code>, das Jahr per Regex.</div>
+      </div>
+      <p class="out"><b>Ergebnis:</b> Plan, z. B. Thema „Alzheimer“, Methode „Deep learning“, ab 2018.</p>
+    </div></div>
+
+    <div class="step t-kg"><div class="num">5</div><div class="card">
+      <div class="head"><span class="agent-tag">Agent 2</span><h3>Retriever, die Brücke zu SemOpenAlex</h3><span class="where">retriever() · lib/kg/queries.ts</span></div>
+      <p><b>a) Begriffe → Konzepte.</b> Jeder Begriff wird einem <code>soa:Concept</code> zugeordnet. Mit MCP über das Tool <code>entity_lookup</code>, sonst über eine SPARQL-Suche nach dem Label. Zu kleine Methoden-Konzepte (unter 2000 Papers) oder doppelte werden verworfen.</p>
+      <p><b>b) Drei Abfragen parallel:</b></p>
+      <ul>
+        <li><code>topWorks</code>: die 24 meistzitierten Papers zu Thema × Methode</li>
+        <li><code>perYear</code>: Papers pro Jahr (für die Trendgrafik)</li>
+        <li><code>coConcepts</code>: Konzepte, die oft gemeinsam auftreten</li>
+      </ul>
+      <p><b>c) Anreichern:</b> <code>details</code> und <code>workConcepts</code> laden Titel, Abstract, DOI und die Konzepte jedes Papers.</p>
+      <p><b>Welcher Weg beantwortet eine Abfrage?</b></p>
+      <div class="decide">
+        <div><b>Bis 20 Zeilen erwartet</b>MCP-Tool <code>execute_sparql_query</code></div>
+        <div><b>Mehr Zeilen erwartet oder MCP-Fehler</b>öffentlicher Endpunkt <code>semopenalex.org/sparql</code></div>
+        <div><b>Zeitlimit (~9–10 s)</b>günstigere Abfrage: Stichprobe (<code>sampleWorks</code>) bzw. Zählung pro Jahr</div>
+        <div><b>Nichts gefunden</b>erst ohne Jahresgrenze, dann nur das Thema. Wird im Ablauf angezeigt.</div>
+      </div>
+      <div class="talks"><span class="chip kg">MCP: entity_lookup</span><span class="chip kg">MCP: execute_sparql_query</span><span class="chip kg">SPARQL-Endpunkt</span><span class="chip kg">SemOpenAlex-Ontologie</span></div>
+      <p class="out"><b>Ergebnis:</b> Konzepte, bis zu 24 Papers mit Abstracts, Jahreszahlen, gemeinsame Konzepte. Jede SPARQL-Abfrage geht als <code>tool_call</code>-Event an den Chat.</p>
+    </div></div>
+
+    <div class="step t-srv"><div class="num">6</div><div class="card" style="border-left-color: var(--c-llm)">
+      <div class="head"><span class="agent-tag">Agent 3</span><h3>Extractor</h3><span class="where">extractor()</span></div>
+      <p>Liest Titel und Abstract jedes Papers und zieht <b>Methoden</b> (z. B. CNN) und <b>Aufgaben</b> (z. B. Klassifikation) heraus.</p>
+      <div class="cols">
+        <div class="box llm"><h4>Mit LLM</h4>Gruppen zu je 6 Papers. Nur was im Text steht, mit Standardnamen aus <code>lexicon.ts</code>.</div>
+        <div class="box srv"><h4>Ohne LLM</h4>Methoden per Mustererkennung, Aufgaben aus den SemOpenAlex-Konzepten des Papers.</div>
+      </div>
+      <p class="out"><b>Ergebnis:</b> pro Paper eine Liste „Methoden → Aufgaben“.</p>
+    </div></div>
+
+    <div class="step t-srv"><div class="num">7</div><div class="card">
+      <div class="head"><span class="agent-tag">Agent 4</span><h3>Graph Builder</h3><span class="where">graphBuilder()</span></div>
+      <p>Ohne LLM. Baut den <b>Evidenzgraphen</b> mit Begriffen der Einstein-Ontologie. Jede Kante merkt sich die Papers, die sie belegen.</p>
+      <div class="graph" role="img" aria-label="Beispiel des Evidenzgraphen">
+        <svg viewBox="0 0 640 170">
+          <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+          <g stroke="var(--muted)" stroke-width="1.3" fill="none" marker-end="url(#a)">
+            <line x1="120" y1="85" x2="262" y2="30"/><line x1="120" y1="85" x2="262" y2="85"/><line x1="120" y1="85" x2="262" y2="140"/>
+            <line x1="345" y1="85" x2="480" y2="85"/><line x1="345" y1="30" x2="480" y2="30"/>
+          </g>
+          <rect x="20" y="66" width="100" height="38" rx="6" fill="var(--c-kg-bg)" stroke="var(--c-kg)"/><text x="70" y="89" text-anchor="middle">Paper</text>
+          <rect x="262" y="12" width="84" height="36" rx="18" fill="var(--c-kg-bg)" stroke="var(--c-kg)"/><text x="304" y="34" text-anchor="middle">Topic</text>
+          <rect x="262" y="67" width="84" height="36" rx="6" fill="var(--c-llm-bg)" stroke="var(--c-llm)"/><text x="304" y="89" text-anchor="middle">Method</text>
+          <rect x="262" y="122" width="84" height="36" rx="6" fill="var(--c-llm-bg)" stroke="var(--c-llm)"/><text x="304" y="144" text-anchor="middle">Task</text>
+          <rect x="480" y="67" width="84" height="36" rx="6" fill="var(--c-llm-bg)" stroke="var(--c-llm)"/><text x="522" y="89" text-anchor="middle">Task</text>
+          <rect x="480" y="12" width="96" height="36" rx="18" fill="var(--c-kg-bg)" stroke="var(--c-kg)"/><text x="528" y="34" text-anchor="middle">Concept</text>
+          <text class="lbl" x="178" y="46">about</text><text class="lbl" x="188" y="80">uses</text><text class="lbl" x="170" y="128">addresses</text>
+          <text class="lbl" x="380" y="80">appliedTo</text><text class="lbl" x="372" y="24">coOccursWith</text>
+          <text class="lbl" x="20" y="130">grün = SemOpenAlex-Ressource</text><text class="lbl" x="20" y="146">violett = vom Extractor gefunden</text>
+        </svg>
+      </div>
+      <p class="out"><b>Ergebnis:</b> Knoten und Kanten mit Belegen (Liste von Paper-IRIs).</p>
+    </div></div>
+
+    <div class="step t-srv"><div class="num">8</div><div class="card" style="border-left-color: var(--c-llm)">
+      <div class="head"><span class="agent-tag">Agent 5</span><h3>Verifier</h3><span class="where">verifier()</span></div>
+      <ul>
+        <li>Die 8 am besten belegten <code>appliedTo</code>-Kanten werden zu <b>Claims</b> C1…C8.</li>
+        <li><b>Konfidenz</b> = 50 % Anzahl Quellen + 30 % Zitationen + 20 % Aktualität. Ab 0.6 <em>supported</em>, ab 0.35 <em>weak</em>, darunter <em>rejected</em>.</li>
+        <li>Dazu ein <b>Trend-Claim</b> direkt aus der SPARQL-Zählung pro Jahr (exakt, Konfidenz 0.95).</li>
+        <li><b>Debatte:</b> Ein LLM-Aufruf spielt Advocate und Skeptic. Er darf den Wert nur <b>senken</b>, nie erhöhen.</li>
+      </ul>
+      <p class="out"><b>Ergebnis:</b> Claims mit Urteil, Konfidenz, Debatte und Quellen.</p>
+    </div></div>
+
+    <div class="step t-srv"><div class="num">9</div><div class="card" style="border-left-color: var(--c-llm)">
+      <div class="head"><span class="agent-tag">Agent 6</span><h3>Reporter</h3><span class="where">reporter()</span></div>
+      <p>Schreibt einen Markdown-Bericht mit Verweisen wie <code>[C1]</code>. Verwendet nur Claims, die nicht verworfen wurden, erfindet keine Zahlen und endet mit Einschränkungen. Ohne LLM entsteht der Bericht aus einer festen Vorlage.</p>
+      <p class="out"><b>Ergebnis:</b> der fertige Bericht. Alles zusammen ergibt ein <code>ResearchResult</code>.</p>
+    </div></div>
+
+    <div class="group"><span class="eyebrow">Zurück zum Chat</span></div>
+
+    <div class="step t-db"><div class="num">10</div><div class="card">
+      <div class="head"><h3>Ergebnis senden und speichern</h3><span class="where">route.ts · lib/store/index.ts</span></div>
+      <p>Das Event <code>result</code> geht als letzte Zeile in den Stream. Danach speichert <code>saveRun()</code> den Lauf in <b>Supabase</b>, falls konfiguriert: Tabellen <code>research_runs</code>, <code>agent_events</code>, <code>claims</code>, <code>evidence_edges</code>, <code>sources</code>.</p>
+      <div class="talks"><span class="chip db">Supabase (optional)</span></div>
+    </div></div>
+
+    <div class="step t-ui"><div class="num">11</div><div class="card">
+      <div class="head"><h3>Chat zeigt die Antwort</h3><span class="where">Chat.tsx · AgentTimeline · Report · EvidencePanel</span></div>
+      <p>Der Chat hat den Stream die ganze Zeit Zeile für Zeile gelesen (<code>getReader()</code>). So erscheint der Ablauf live:</p>
+      <div class="cols">
+        <div class="box ui"><h4>Agenten-Ablauf</h4>Jeder Agent, jede SPARQL-Abfrage (aufklappbar), jede Erweiterung der Suche.</div>
+        <div class="box ui"><h4>Bericht</h4>Markdown mit klickbaren <code>[C1]</code>. Ein Klick hebt die Kanten des Claims im Graphen hervor.</div>
+        <div class="box ui"><h4>Evidenz-Panel</h4>Graph (Cytoscape), Claims mit Debatte, Trend- und Konzept-Grafiken, Quellen.</div>
+      </div>
+      <p>Der fertige Gesprächsschritt wird mit <code>saveChat()</code> im Browser gespeichert (bis zu 30 Chats, in der Seitenleiste).</p>
+      <div class="talks"><span class="chip ui">Browser</span><span class="chip db">localStorage</span></div>
+    </div></div>
+
+    <div class="group"><span class="eyebrow">Ausgabe nach außen</span></div>
+
+    <div class="step t-mp"><div class="num">12</div><div class="card">
+      <div class="head"><h3>Export und metaphactory</h3><span class="where">lib/export.ts · app/api/metaphactory/route.ts</span></div>
+      <div class="cols">
+        <div class="box ui"><h4>Download Turtle</h4><code>toTurtle()</code>: der Evidenzgraph als RDF. Begriffe aus der Einstein-Ontologie, SemOpenAlex-IRIs für Papers und Konzepte, Belege mit <code>prov:wasDerivedFrom</code>.</div>
+        <div class="box ui"><h4>Download Markdown</h4><code>toMarkdown()</code>: Bericht plus Claims mit Quellen.</div>
+        <div class="box mp"><h4>Knopf „metaphactory“</h4><code>POST /api/metaphactory</code> schreibt den Lauf als Named Graph in GraphDB und öffnet die Seite des Laufs in metaphactory.</div>
+      </div>
+      <div class="talks"><span class="chip mp">GraphDB :7200</span><span class="chip mp">metaphactory :10214</span></div>
+    </div></div>
+  </div>
+
+  <h2>Die Ontologien</h2>
+  <p class="sub">Die Pipeline liest mit der SemOpenAlex-Ontologie und schreibt mit der Einstein-Ontologie. Beide stehen zusammen in einer Datei: <code>ontology/einstein.ttl</code>.</p>
+
+  <div class="onto">
+    <div class="side">
+      <span class="chip kg">Lesen · Schritt 5</span>
+      <h3 style="margin-top:10px">SemOpenAlex-Ontologie</h3>
+      <p class="mono" style="color:var(--muted);margin-top:2px">2. Teil von ontology/einstein.ttl · v4.0.0 · 21 Klassen, 100+ Properties</p>
+      <table class="terms">
+        <tr><td>soa:Concept</td><td>Forschungsthema</td></tr>
+        <tr><td>soa:hasConcept</td><td>Paper → Thema</td></tr>
+        <tr><td>soa:level, soa:worksCount</td><td>Ebene, Größe des Themas</td></tr>
+        <tr><td>soa:citedByCount</td><td>Zitationen</td></tr>
+        <tr><td>fabio:hasPublicationYear</td><td>Jahr</td></tr>
+        <tr><td>dct:title, dct:abstract</td><td>Titel, Abstract</td></tr>
+        <tr><td>datacite:doi</td><td>DOI</td></tr>
+        <tr><td>skos:prefLabel</td><td>Name eines Konzepts</td></tr>
+      </table>
+      <p style="margin-top:10px;font-size:13px;color:var(--muted)">Definiert, aber noch nicht abgefragt: Author, Institution, Funder, Source, Topic-Hierarchie, cito:cites, isRetracted, isOa …</p>
+    </div>
+    <div class="mid" aria-hidden="true">→</div>
+    <div class="side">
+      <span class="chip mp">Schreiben · Schritte 7 und 12</span>
+      <h3 style="margin-top:10px">Einstein-Ontologie</h3>
+      <p class="mono" style="color:var(--muted);margin-top:2px">1. Teil von ontology/einstein.ttl · verknüpft mit SemOpenAlex + PROV-O</p>
+      <table class="terms">
+        <tr><td>ein:ResearchRun</td><td>ein Lauf (prov:Activity)</td></tr>
+        <tr><td>ein:Claim</td><td>Aussage (prov:Entity)</td></tr>
+        <tr><td>ein:Method, ein:Task</td><td>vom Extractor gefunden</td></tr>
+        <tr><td>ein:uses, ein:addresses</td><td>Paper → Methode / Aufgabe</td></tr>
+        <tr><td>ein:appliedTo</td><td>Methode → Aufgabe</td></tr>
+        <tr><td>ein:about, ein:coOccursWith</td><td>Bezug zu Konzepten</td></tr>
+        <tr><td>ein:confidence, ein:verdict</td><td>Bewertung eines Claims</td></tr>
+        <tr><td>prov:wasDerivedFrom</td><td>Beleg → Paper</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="map">
+    <h3>Wie die beiden zusammenhängen</h3>
+    <table style="margin-top:8px">
+      <tr><th>Einstein</th><th>Beziehung</th><th>SemOpenAlex / Standard</th><th>Bedeutung</th></tr>
+      <tr><td>ein:Work</td><td>owl:equivalentClass</td><td>soa:Work</td><td>Ein Paper bleibt dieselbe Ressource</td></tr>
+      <tr><td>ein:Concept</td><td>owl:equivalentClass</td><td>soa:Concept</td><td>Gemeinsames Konzept</td></tr>
+      <tr><td>ein:Topic</td><td>rdfs:subClassOf</td><td>soa:Concept</td><td>Das Thema des Laufs (nicht soa:Topic)</td></tr>
+      <tr><td>ein:Method, ein:Task</td><td>rdfs:subClassOf</td><td>skos:Concept</td><td>Eigene Begriffe aus den Abstracts</td></tr>
+      <tr><td>ein:Claim</td><td>rdfs:subClassOf</td><td>prov:Entity</td><td>Herkunft über PROV-O</td></tr>
+    </table>
+  </div>
+
+  <h2>Was passiert, wenn etwas fehlt</h2>
+  <p class="sub">Die Pipeline läuft auch ohne Keys. Jede fehlende Komponente hat einen Ersatz.</p>
+  <div class="fb">
+    <table>
+      <tr><th>Komponente</th><th>Variable</th><th>Ohne sie</th></tr>
+      <tr><td><span class="chip llm">LLM</span></td><td><code>LLM_API_KEY</code></td><td>Demo-Modus: Planner, Extractor und Reporter arbeiten mit Regeln, der Verifier ohne Debatte. Fällt das LLM mitten im Lauf aus, übernimmt pro Schritt der Regelweg.</td></tr>
+      <tr><td><span class="chip kg">MCP</span></td><td><code>SEMOPENALEX_MCP_AUTH</code></td><td>Nur der öffentliche SPARQL-Endpunkt, Konzepte per Label-Suche statt <code>entity_lookup</code>.</td></tr>
+      <tr><td><span class="chip db">Supabase</span></td><td><code>SUPABASE_URL</code></td><td>Chats liegen nur im Browser.</td></tr>
+      <tr><td><span class="chip mp">metaphactory</span></td><td><code>METAPHACTORY_GRAPHDB_URL</code></td><td>Kein metaphactory-Knopf. Turtle-Download geht trotzdem.</td></tr>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:14px">Die Seite <code>/settings</code> zeigt über <code>/api/status</code>, welche Dienste gerade aktiv und erreichbar sind.</p>
+</div>
